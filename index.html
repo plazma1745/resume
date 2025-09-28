@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Конструктор резюме для школьника</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -184,16 +186,31 @@
       background: linear-gradient(to right, #009a87 0%, #7db82d 100%);
     }
     
-    button.submit-btn {
-      background: linear-gradient(to right, #ff416c 0%, #ff4b2b 100%);
-      padding: 15px 30px;
-      font-size: 18px;
-      width: 100%;
+    .export-buttons {
+      display: flex;
+      gap: 15px;
       margin-top: 20px;
     }
     
-    button.submit-btn:hover {
-      background: linear-gradient(to right, #e03a5f 0%, #e04427 100%);
+    .export-buttons button {
+      flex: 1;
+      margin-top: 0;
+    }
+    
+    .export-buttons .pdf-btn {
+      background: linear-gradient(to right, #e74c3c 0%, #c0392b 100%);
+    }
+    
+    .export-buttons .pdf-btn:hover {
+      background: linear-gradient(to right, #d62c1a 0%, #a52a20 100%);
+    }
+    
+    .export-buttons .word-btn {
+      background: linear-gradient(to right, #2980b9 0%, #1f618d 100%);
+    }
+    
+    .export-buttons .word-btn:hover {
+      background: linear-gradient(to right, #1f618d 0%, #1a5276 100%);
     }
     
     .expItem, .courseItem, .recItem {
@@ -392,6 +409,52 @@
     .upload-btn:hover {
       background: #3a8bd8;
     }
+    
+    /* Стили для печати */
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+        margin: 0;
+        color: black;
+      }
+      
+      .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      header, .section, footer {
+        box-shadow: none;
+        border-radius: 0;
+        margin: 0;
+        padding: 15px;
+      }
+      
+      .form-container {
+        display: block;
+      }
+      
+      .section {
+        page-break-inside: avoid;
+        border: 1px solid #ccc;
+      }
+      
+      .export-buttons, .photo-upload, .remove-btn, .add-btn {
+        display: none !important;
+      }
+      
+      .row {
+        display: block;
+      }
+      
+      .row > div {
+        flex: none;
+        width: 100%;
+        margin-bottom: 15px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -537,7 +600,10 @@
         <textarea name="about" rows="4" placeholder="Я активный и целеустремлённый ученик 10 класса. Увлекаюсь программированием и участвую в различных конкурсах и олимпиадах. Мечтаю поступить в престижный вуз на факультет информационных технологий...">Я активная, ставлю большие цели в спорте, нравится побеждать и работать в команде. Моя цель - войти в тройку лучших команд России в категории U18</textarea>
       </div>
 
-      <button type="submit" class="submit-btn"><i class="fas fa-download"></i> Скачать резюме (HTML)</button>
+      <div class="export-buttons">
+        <button type="button" class="pdf-btn" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Скачать PDF</button>
+        <button type="button" class="word-btn" onclick="generateWord()"><i class="fas fa-file-word"></i> Скачать Word</button>
+      </div>
     </form>
     
     <footer>
@@ -546,6 +612,9 @@
   </div>
 
   <script>
+    // Глобальная переменная для хранения данных фото
+    let photoData = null;
+    
     // Предварительный просмотр фото
     document.getElementById('photoInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
@@ -554,6 +623,8 @@
         reader.onload = function(event) {
           const preview = document.getElementById('photoPreview');
           preview.innerHTML = `<img src="${event.target.result}" alt="Фото">`;
+          // Сохраняем данные фото для использования при генерации резюме
+          photoData = event.target.result;
         };
         reader.readAsDataURL(file);
       }
@@ -648,36 +719,164 @@
       return isValid;
     }
 
-    // Обработка отправки формы
-    document.getElementById('resumeForm').addEventListener('submit', function(e){
-      e.preventDefault();
-      
+    // Генерация PDF
+    async function generatePDF() {
       if (!validateForm()) {
         return;
       }
       
-      const data = new FormData(this);
-      const photoInput = document.getElementById('photoInput');
+      // Создаем контейнер для PDF
+      const pdfContainer = document.createElement('div');
+      pdfContainer.id = 'pdf-content';
+      pdfContainer.style.width = '210mm';
+      pdfContainer.style.height = '297mm';
+      pdfContainer.style.padding = '20px';
+      pdfContainer.style.boxSizing = 'border-box';
+      pdfContainer.style.backgroundColor = 'white';
+      pdfContainer.style.color = 'black';
+      pdfContainer.style.fontFamily = 'Arial, sans-serif';
+      pdfContainer.style.lineHeight = '1.4';
       
-      if (photoInput.files.length > 0) {
-        data.append('photo', photoInput.files[0]);
+      // Генерируем HTML для PDF
+      const data = new FormData(document.getElementById('resumeForm'));
+      if (photoData) {
+        data.append('photo_data', photoData);
       }
       
       const html = generateResumeHTML(data);
-      const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+      pdfContainer.innerHTML = html;
+      
+      // Добавляем контейнер к документу
+      document.body.appendChild(pdfContainer);
+      
+      // Ждем, пока изображения загрузятся
+      await new Promise(resolve => {
+        setTimeout(resolve, 1000);
+      });
+      
+      // Создаем PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Получаем canvas из контейнера
+      const canvas = await html2canvas(pdfContainer, { 
+        scale: 2,
+        useCORS: true,
+        allowTaint: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Удаляем временный контейнер
+      document.body.removeChild(pdfContainer);
+      
+      // Сохраняем PDF
+      pdf.save('resume_school.pdf');
+    }
+
+    // Генерация Word документа
+    function generateWord() {
+      if (!validateForm()) {
+        return;
+      }
+      
+      const data = new FormData(document.getElementById('resumeForm'));
+      if (photoData) {
+        data.append('photo_data', photoData);
+      }
+      
+      const html = generateResumeHTML(data);
+      
+      // Создаем Word документ
+      const docType = '<?xml version="1.0" encoding="UTF-8"?>';
+      const wordContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+              xmlns:w="urn:schemas-microsoft-com:office:word" 
+              xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8">
+          <title>Резюме ${data.get('fio')}</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 40px; 
+              color: #333; 
+              line-height: 1.4; 
+              font-size: 12pt;
+            }
+            h1 { 
+              margin: 0 0 10px 0; 
+              font-size: 18pt; 
+              color: #2c3e50; 
+              border-bottom: 3px solid #4facfe; 
+              padding-bottom: 10px; 
+            }
+            h2 { 
+              margin-top: 25px; 
+              font-size: 14pt; 
+              color: #2980b9; 
+              border-bottom: 2px solid #eee; 
+              padding-bottom: 5px; 
+            }
+            .contacts { 
+              margin-top: 10px; 
+              font-size: 12pt; 
+              color: #555; 
+            }
+            ul { 
+              margin: 10px 0; 
+              padding-left: 20px; 
+            }
+            li { 
+              margin-bottom: 8px; 
+            }
+            .project-item, .volunteer-item { 
+              margin-bottom: 15px; 
+              padding: 10px; 
+              background: #f8f9fa; 
+              border-radius: 5px; 
+            }
+            .skills { 
+              display: flex; 
+              flex-wrap: wrap; 
+              gap: 8px; 
+            }
+            .skill-tag { 
+              background: #4facfe; 
+              color: white; 
+              padding: 5px 12px; 
+              border-radius: 20px; 
+              font-size: 10pt; 
+            }
+          </style>
+        </head>
+        <body>
+          ${html}
+        </body>
+        </html>
+      `;
+      
+      // Создаем Blob с Word документом
+      const blob = new Blob([docType + wordContent], {
+        type: 'application/msword'
+      });
+      
+      // Создаем ссылку для скачивания
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'resume_school.html';
+      a.download = 'resume_school.doc';
       a.click();
       URL.revokeObjectURL(url);
-      
-      // Показать сообщение об успехе
-      document.getElementById('successMessage').style.display = 'block';
-      setTimeout(() => {
-        document.getElementById('successMessage').style.display = 'none';
-      }, 5000);
-    });
+    }
 
     function generateResumeHTML(data){
       const get = (name) => data.getAll(name).filter(v => v).join(', ');
@@ -717,12 +916,10 @@
       }
       
       // Получение фото
-      const photoFile = data.get('photo');
+      const photoData = data.get('photo_data');
       let photoHtml = '';
-      if (photoFile && photoFile.size > 0) {
-        const reader = new FileReader();
-        reader.readAsDataURL(photoFile);
-        photoHtml = `<img src="${reader.result}" alt="Фото" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; float: right; margin-left: 20px; border: 2px solid #4facfe;">`;
+      if (photoData) {
+        photoHtml = `<img src="${photoData}" alt="Фото" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; float: right; margin-left: 20px; border: 2px solid #4facfe;">`;
       }
       
       return `<!DOCTYPE html>
